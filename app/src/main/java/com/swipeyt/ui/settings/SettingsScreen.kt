@@ -14,9 +14,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.automirrored.filled.Login
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -86,7 +88,10 @@ fun SettingsScreen(container: AppContainer) {
                 }
                 Spacer(Modifier.size(16.dp))
                 Column(Modifier.weight(1f)) {
-                    Text(auth.accountName ?: "YouTube Music account", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        auth.accountName ?: if (auth.isLoggedIn) "YouTube Music account" else "Not signed in",
+                        style = MaterialTheme.typography.titleMedium,
+                    )
                     Text(
                         "${userData.swipes.count { it.liked }} likes • ${userData.swipes.count { !it.liked }} skips",
                         style = MaterialTheme.typography.bodyMedium,
@@ -162,10 +167,21 @@ fun SettingsScreen(container: AppContainer) {
 
         HorizontalDivider(Modifier.padding(vertical = 12.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
-            OutlinedButton(onClick = { confirmLogout = true }, shape = MaterialTheme.shapes.extraLarge) {
-                Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = null)
-                Spacer(Modifier.size(8.dp))
-                Text("Sign out")
+            if (auth.isLoggedIn) {
+                OutlinedButton(onClick = { confirmLogout = true }, shape = MaterialTheme.shapes.extraLarge) {
+                    Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = null)
+                    Spacer(Modifier.size(8.dp))
+                    Text("Sign out")
+                }
+            } else {
+                Button(
+                    onClick = { container.userStore.updateSettings { it.copy(guest = false) } },
+                    shape = MaterialTheme.shapes.extraLarge,
+                ) {
+                    Icon(Icons.AutoMirrored.Filled.Login, contentDescription = null)
+                    Spacer(Modifier.size(8.dp))
+                    Text("Sign in to YouTube Music")
+                }
             }
         }
         Spacer(Modifier.height(24.dp))
@@ -200,7 +216,7 @@ fun SettingsScreen(container: AppContainer) {
                     confirmLogout = false
                     container.player.stop()
                     container.playlists.invalidate()
-                    container.userStore.updateSettings { it.copy(playlistId = null) }
+                    container.userStore.updateSettings { it.copy(playlistId = null, guest = false) }
                     CookieManager.getInstance().removeAllCookies(null)
                     container.auth.clear()
                 }) { Text("Sign out") }

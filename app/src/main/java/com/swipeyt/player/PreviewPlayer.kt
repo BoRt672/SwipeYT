@@ -2,11 +2,13 @@ package com.swipeyt.player
 
 import android.content.Context
 import android.util.Log
+import androidx.annotation.OptIn
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
@@ -42,6 +44,7 @@ data class PlaybackState(
  * (where the hook usually is) and looped until the user swipes. Stream URLs are resolved through
  * InnerTube and cached, and upcoming cards are prefetched so swiping feels instant.
  */
+@OptIn(UnstableApi::class)
 class PreviewPlayer(
     context: Context,
     private val yt: InnerTube,

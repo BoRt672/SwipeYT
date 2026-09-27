@@ -39,6 +39,8 @@ data class Settings(
     val playlistId: String? = null,
     val onboardingDone: Boolean = false,
     val autoplay: Boolean = true,
+    /** Discover without a YouTube Music account; likes stay local until the user signs in. */
+    val guest: Boolean = false,
 )
 
 @Serializable

@@ -100,7 +100,9 @@ class DiscoverViewModel(private val container: AppContainer) : ViewModel() {
         _state.update { it.copy(deck = deck.drop(1), canUndo = true, toast = null) }
         deck.getOrNull(1)?.let { player.play(it.track, previewSeconds) } ?: player.stop()
 
-        if (liked) {
+        if (liked && !container.auth.current.isLoggedIn) {
+            _state.update { it.copy(toast = "Liked. Sign in to sync likes to your Swipe YT playlist.") }
+        } else if (liked) {
             viewModelScope.launch {
                 try {
                     container.playlists.add(front.track)
@@ -120,7 +122,7 @@ class DiscoverViewModel(private val container: AppContainer) : ViewModel() {
         container.userStore.removeSwipe(candidate.track.videoId)
         _state.update { it.copy(deck = listOf(candidate) + it.deck, canUndo = false, toast = null) }
         player.play(candidate.track, previewSeconds)
-        if (liked) {
+        if (liked && container.auth.current.isLoggedIn) {
             viewModelScope.launch {
                 runCatching { container.playlists.remove(candidate.track) }
                     .onFailure { Log.w(TAG, "undo remove failed", it) }
