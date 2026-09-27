@@ -135,6 +135,9 @@ class Recommender(
     // ---------------------------------------------------------------- candidate generation
 
     private suspend fun refill() {
+        // Cold pool: stop after the first source that yields enough for a deck so the first card
+        // appears quickly; later calls top the pool up to TARGET_POOL.
+        val target = if (pool.isEmpty()) MIN_POOL else TARGET_POOL
         val swipes = store.current.swipes
         val likes = swipes.filter { it.liked }
         val settings = store.current.settings
@@ -158,7 +161,7 @@ class Recommender(
 
         var lastError: IOException? = null
         for (attempt in attempts) {
-            if (pool.size >= TARGET_POOL) break
+            if (pool.size >= target) break
             try {
                 attempt()
             } catch (e: IOException) {

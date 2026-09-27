@@ -1,5 +1,6 @@
 package com.swipeyt.data.innertube
 
+import android.util.Log
 import com.swipeyt.data.auth.AuthStore
 import com.swipeyt.domain.Track
 import kotlinx.coroutines.Dispatchers
@@ -324,9 +325,13 @@ class InnerTube(
 
     /**
      * Resolves a direct audio URL, trying clients in order. Clients that require the web signature
-     * cipher return `signatureCipher` instead of `url`; those formats are skipped.
+     * cipher return `signatureCipher` instead of `url`; those formats are skipped. Each URL is
+     * probed with a range request past the first megabyte, because URLs that lack a PO token are
+     * served only up to ~1 MB and then 403.
      */
     suspend fun resolveStream(videoId: String): StreamInfo {
+        // Without a visitor id the player endpoint answers "sign in to confirm you're not a bot".
+        if (auth.current.visitorData == null) runCatching { refreshSessionIds() }
         var lastError: Exception? = null
         for (client in YtClient.STREAM_CLIENTS) {
             try {
@@ -365,7 +370,11 @@ class InnerTube(
                     userAgent = client.userAgent,
                     expiresAtMs = System.currentTimeMillis() + (expiresIn - 60) * 1000,
                 )
-                if (probe(info)) return info
+                val length = format["contentLength"].string?.toLongOrNull() ?: 0L
+                if (probe(info, length)) {
+                    Log.d(TAG, "$videoId: stream via ${client.clientName} itag=${format["itag"].int}")
+                    return info
+                }
                 lastError = InnerTubeException("Stream URL from ${client.clientName} rejected by CDN")
             } catch (e: IOException) {
                 lastError = e
@@ -374,16 +383,24 @@ class InnerTube(
         throw lastError ?: InnerTubeException("No stream for $videoId")
     }
 
-    private suspend fun probe(info: StreamInfo): Boolean = withContext(Dispatchers.IO) {
+    private suspend fun probe(info: StreamInfo, contentLength: Long): Boolean = withContext(Dispatchers.IO) {
+        val offset = if (contentLength > PROBE_OFFSET + 1) PROBE_OFFSET else 0L
         val request = Request.Builder()
             .url(info.url)
             .header("User-Agent", info.userAgent)
-            .header("Range", "bytes=0-1")
+            .header("Range", "bytes=$offset-${offset + 1}")
             .build()
-        runCatching { http.newCall(request).execute().use { it.code in 200..299 } }.getOrDefault(false)
+        runCatching {
+            http.newCall(request).execute().use {
+                Log.d(TAG, "probe ${it.request.url.host} -> ${it.code}")
+                it.code in 200..299
+            }
+        }.getOrDefault(false)
     }
 
     private companion object {
+        const val TAG = "InnerTube"
+        const val PROBE_OFFSET = 1_500_000L
         const val ORIGIN = "https://music.youtube.com"
         const val API_BASE = "$ORIGIN/youtubei/v1/"
         val JSON_MEDIA = "application/json; charset=utf-8".toMediaType()

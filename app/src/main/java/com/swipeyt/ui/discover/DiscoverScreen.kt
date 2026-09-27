@@ -249,12 +249,14 @@ private fun SwipeableCard(
                             scope.launch { offset.snapTo(offset.value + drag) }
                         },
                         onDragEnd = {
-                            val x = offset.value.x
+                            // Read the accumulated drag, not offset.value: the snapTo launches may
+                            // not have run yet when a quick fling ends within one frame.
+                            val x = totalDrag.x
                             if (abs(x) > threshold) {
                                 val liked = x > 0
                                 scope.launch {
                                     offset.animateTo(
-                                        Offset(sign(x) * widthPx * 1.6f, offset.value.y * 1.5f),
+                                        Offset(sign(x) * widthPx * 1.6f, totalDrag.y * 1.5f),
                                         animationSpec = tween(220),
                                     )
                                     onSwiped(liked)

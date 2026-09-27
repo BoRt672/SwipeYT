@@ -34,6 +34,7 @@ import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -58,9 +59,12 @@ import kotlinx.coroutines.launch
 /** The user's "Swipe YT" playlist as it exists on their YouTube Music account. */
 @Composable
 fun PlaylistScreen(container: AppContainer) {
-    val tracks by container.playlists.tracks.collectAsStateWithLifecycle()
+    val auth by container.auth.state.collectAsStateWithLifecycle()
+    val remoteTracks by container.playlists.tracks.collectAsStateWithLifecycle()
     val playback by container.player.state.collectAsStateWithLifecycle()
     val settings by container.userStore.data.collectAsStateWithLifecycle()
+    val loggedIn = auth.isLoggedIn
+    val tracks: List<Track>? = if (loggedIn) remoteTracks else settings.swipes.filter { it.liked }.map { it.track }
     val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
     val uriHandler = LocalUriHandler.current
@@ -68,7 +72,7 @@ fun PlaylistScreen(container: AppContainer) {
     var error by remember { mutableStateOf<String?>(null) }
 
     fun refresh() {
-        if (refreshing) return
+        if (refreshing || !loggedIn) return
         refreshing = true
         scope.launch {
             try {
@@ -82,7 +86,7 @@ fun PlaylistScreen(container: AppContainer) {
         }
     }
 
-    LaunchedEffect(Unit) { if (tracks == null) refresh() }
+    LaunchedEffect(loggedIn) { if (loggedIn && remoteTracks == null) refresh() }
 
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
@@ -93,18 +97,29 @@ fun PlaylistScreen(container: AppContainer) {
                 Column(Modifier.weight(1f)) {
                     Text("Swipe YT", style = MaterialTheme.typography.headlineMedium)
                     Text(
-                        tracks?.let { "${it.size} tracks in your YouTube Music library" } ?: "Your liked tracks",
+                        when {
+                            !loggedIn -> "${tracks?.size ?: 0} likes on this device"
+                            tracks != null -> "${tracks.size} tracks in your YouTube Music library"
+                            else -> "Your liked tracks"
+                        },
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                }
+                if (!loggedIn) {
+                    TextButton(onClick = { container.userStore.updateSettings { it.copy(guest = false) } }) {
+                        Text("Sign in")
+                    }
                 }
                 settings.settings.playlistId?.let { id ->
                     IconButton(onClick = { uriHandler.openUri("https://music.youtube.com/playlist?list=$id") }) {
                         Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = "Open in YouTube Music")
                     }
                 }
-                IconButton(onClick = ::refresh, enabled = !refreshing) {
-                    Icon(Icons.Filled.Refresh, contentDescription = "Refresh")
+                if (loggedIn) {
+                    IconButton(onClick = ::refresh, enabled = !refreshing) {
+                        Icon(Icons.Filled.Refresh, contentDescription = "Refresh")
+                    }
                 }
             }
             Spacer(Modifier.height(8.dp))
@@ -138,7 +153,7 @@ fun PlaylistScreen(container: AppContainer) {
                                 onRemove = {
                                     scope.launch {
                                         try {
-                                            container.playlists.remove(track)
+                                            if (loggedIn) container.playlists.remove(track)
                                             container.userStore.removeSwipe(track.videoId)
                                             snackbar.showSnackbar("Removed \"${track.title}\"")
                                         } catch (e: Exception) {

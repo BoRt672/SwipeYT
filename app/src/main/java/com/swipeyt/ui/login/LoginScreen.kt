@@ -31,6 +31,7 @@ import androidx.compose.material3.MaterialShapes
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.toShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -66,6 +67,7 @@ fun LoginScreen(container: AppContainer) {
         container.auth.update {
             it.copy(cookie = cookie, visitorData = visitorData ?: it.visitorData, dataSyncId = dataSyncId)
         }
+        container.userStore.updateSettings { it.copy(guest = false) }
         scope.launch {
             try {
                 if (visitorData == null) container.innerTube.refreshSessionIds()
@@ -90,12 +92,18 @@ fun LoginScreen(container: AppContainer) {
             busy = finishing,
             error = error,
             onSignIn = { showWebView = true },
+            onGuest = {
+                container.userStore.updateSettings { it.copy(guest = true) }
+                if (container.auth.current.visitorData == null) {
+                    scope.launch { runCatching { container.innerTube.refreshSessionIds() } }
+                }
+            },
         )
     }
 }
 
 @Composable
-private fun Welcome(busy: Boolean, error: String?, onSignIn: () -> Unit) {
+private fun Welcome(busy: Boolean, error: String?, onSignIn: () -> Unit, onGuest: () -> Unit) {
     val colors = MaterialTheme.colorScheme
     Box(
         Modifier
@@ -145,6 +153,8 @@ private fun Welcome(busy: Boolean, error: String?, onSignIn: () -> Unit) {
                     Spacer(Modifier.size(12.dp))
                     Text("Sign in with YouTube Music", style = MaterialTheme.typography.titleMedium)
                 }
+                Spacer(Modifier.height(8.dp))
+                TextButton(onClick = onGuest) { Text("Try without an account") }
             }
             if (error != null) {
                 Spacer(Modifier.height(16.dp))

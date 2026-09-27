@@ -48,7 +48,7 @@ fun SwipeYtApp(container: AppContainer) {
     val userData by container.userStore.data.collectAsStateWithLifecycle()
 
     val gate = when {
-        !auth.isLoggedIn -> Gate.Login
+        !auth.isLoggedIn && !userData.settings.guest -> Gate.Login
         !userData.settings.onboardingDone -> Gate.Onboarding
         else -> Gate.Main
     }
